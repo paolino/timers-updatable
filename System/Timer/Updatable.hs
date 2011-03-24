@@ -35,7 +35,7 @@ type Delay = Int
 
 -- | Abstract timers that can be updated. Hanging via wait function can be done by any number of threads, which is sinchronization.
 data Updatable a = Updatable {
-  wait :: IO (Maybe a),     -- ^ wait until the timer rings, or signal Nothing if timer is destroyed
+  wait :: STM (Maybe a),     -- ^ wait until the timer rings, or signal Nothing if timer is destroyed
   renew :: Delay -> IO (),  -- ^ update the delay in the timer
   kill :: IO ()             -- ^ destoy the timer
   }
@@ -46,7 +46,7 @@ engine k t w d0 = do
   x <- newEmptyTMVarIO
   t d0 
   p <- forkIO $ w >>= atomically . putTMVar x . Just  
-  return $ Updatable (atomically $ takeTMVar x >>= \r -> putTMVar x r >> return r) t (k >> killThread p >> atomically (putTMVar x Nothing))
+  return $ Updatable (takeTMVar x >>= \r -> putTMVar x r >> return r) t (k >> killThread p >> atomically (putTMVar x Nothing))
 
 -- | Create and start a parallel updatable timer. This timer renew actions will start parallel timers. Last timer that is over will compute the given action.
 parallel  :: IO a             -- ^ the action to run when timer rings 
@@ -84,9 +84,9 @@ serial a d0 = do
 
 main = do
  t <- parallel (return 5) $ 10^7
- forkIO $ wait t >>= print . (+1) . fromJust 
- forkIO $ wait t >>= print . (+2) . fromJust
+ forkIO $ atomically (wait t) >>= print . (+1) . fromJust 
+ forkIO $ atomically (wait t) >>= print . (+2) . fromJust
  threadDelay $ 5 * 10 ^ 6
  renew t $ 6 * 10 ^ 6
- wait t >>= print . fromJust 
+ atomically (wait t) >>= print . fromJust 
 
