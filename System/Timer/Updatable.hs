@@ -39,7 +39,7 @@ module System.Timer.Updatable
 
 import Data.Maybe
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Monad (when, void, forever)
+import Control.Monad (when, forever)
 import Control.Concurrent.STM
 import Control.Concurrent.Killable
 
