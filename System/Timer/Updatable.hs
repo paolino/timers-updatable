@@ -129,8 +129,7 @@ replacer a d0 = do
   z <- newEmptyTMVarIO 
   let 
     t k = do
-      ps <- atomically $ readTVar tz
-      mapM_ kill ps
+      atomically (readTVar tz) >>= kill
       p <- forkIO $ longThreadDelay k >> atomically (putTMVar z ())
       atomically $ readTVar tz >>= writeTVar tz . (p:)
     w = atomically (takeTMVar z) >> a
