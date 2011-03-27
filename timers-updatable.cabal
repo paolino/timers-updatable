@@ -27,13 +27,12 @@ Library
   
   Exposed-modules:
     System.Timer.Updatable
+    Control.Concurrent.Killable
   
   Build-depends:
     base < 5,
     stm
   
-  Other-modules:       
-    Control.Concurrent.Killable
   
 Source-repository head
   type:             git
