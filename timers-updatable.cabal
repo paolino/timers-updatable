@@ -31,7 +31,10 @@ Library
   
   Build-depends:
     base < 5,
-    stm
+    stm,
+    -- testing packages
+    time,
+    QuickCheck
   
   
 Source-repository head
