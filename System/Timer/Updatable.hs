@@ -38,6 +38,8 @@ module System.Timer.Updatable
   , replacer
   -- * Utility
   , longThreadDelay
+  -- * Test
+  , test
   ) where
 
 import Data.List (unfoldr)
@@ -48,6 +50,11 @@ import Control.Monad (when, forever)
 import Control.Concurrent.STM
 import Control.Concurrent.Killable
 
+import Test.QuickCheck
+import Test.QuickCheck.Monadic
+import Data.List (sort)
+import Control.Applicative ((<$>))
+import Data.Time.Clock
 -- | A delay in microseconds
 type Delay = Int64
 
@@ -150,13 +157,47 @@ longThreadDelay d = mapM_ (threadDelay . fromIntegral) $ unfoldr f d
            | otherwise   = Just (maxInt, d1-maxInt)
       maxInt = fromIntegral (maxBound :: Int)  -- Platform-dependent
 
+--------------------------------------------------  testing ---------------------------------------
 
+data Type = Parallel | Serial | Replacer  deriving Show
 
-main = do
- t <- parallel (return 5) $ 10^7
- forkIO $ waitIO t >>= print . (+1) . fromJust 
- forkIO $ waitIO t >>= print . (+2) . fromJust
- threadDelay $ 5 * 10 ^ 6
- renewIO t $ 6 * 10 ^ 6
- waitIO t >>= print . fromJust 
+times :: Int -> Gen [(Delay,Delay)]
+times n = do
+    let c = fromIntegral <$> choose (0,n)
+    rs <- listOf1 $ do
+      b <- c
+      d <- c
+      return (b,d)
+    r <- c
+    return $ (0,r) : rs
+
+solve :: Type -> [(Delay,Delay)] -> Delay
+solve _ [] = error "can't test"
+
+solve Parallel xs = foldl k 0 . sort $ xs where
+  k t (b,x) = if b > t then t else max t  (x + b)
+
+solve Serial xs = foldl k 0 . sort $ xs where
+  k t (b,x) = if b > t then t else t + x
+
+solve Replacer xs = foldl k 0 . sort $ xs where
+  k t (b,x) = if b > t then t else x + b
+
+mapType Parallel = parallel
+mapType Serial = serial
+mapType Replacer = replacer
+
+-- | a quickCheck property testing all timers in the module. Due to its IO nature , it sometimes fail.
+test = monadicIO $ do
+  t <- pick $ elements [Parallel,Serial,Replacer]
+  xs'@((0,x):xs) <- pick $ times 3000000
+  start <- run getCurrentTime
+  timer <- run $ (mapType t) (return ()) x
+  run $ flip mapM_ xs $ \(b,x) -> forkIO $ longThreadDelay b >> renewIO timer x
+  run $ waitIO timer
+  end <- run $ getCurrentTime
+  let d = fromIntegral (fromEnum (end `diffUTCTime` start)) `div` 1000000
+  run $ print (d,solve t xs')
+  stop $ abs (d - solve t xs') < 300000
+
 
